@@ -3,7 +3,9 @@ name: Build, Test, Deploy (Dev)
 on:
   push:
     branches:
-      - develop
+      - master
+      - dev
+      - DEVLAB-38
   workflow_dispatch:
 
 permissions:
