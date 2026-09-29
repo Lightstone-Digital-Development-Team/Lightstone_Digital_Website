@@ -2,7 +2,8 @@ name: Build, Test, Deploy (Dev)
 
 on:
   push:
-    branches: [ develop ]
+    branches:
+      - develop
   workflow_dispatch:
 
 permissions:
@@ -13,7 +14,7 @@ concurrency: deploy-dev
 
 env:
   VM_NAME: LSDGDW-AZWEB01
-  APP_NAME: myapp            # webapps\myapp.war -> http://server:8080/myapp  (use ROOT for "/")
+  APP_NAME: myapp
   TOMCAT_SERVICE: Tomcat10
   HTTP_PORT: "8080"
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -25,13 +26,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
+
       - run: mvn -B package -DskipTests
+
       - run: mkdir -p dist && cp target/*.war dist/app.war
+
       - uses: actions/upload-artifact@v4
         with:
           name: war
@@ -42,11 +47,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
+
       - run: mvn -B test
 
   deploy:
@@ -65,66 +72,88 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy WAR to Tomcat
+        shell: bash
         run: |
           BLOB="$APP_NAME-$GITHUB_RUN_ID.war"
 
           az storage blob upload --auth-mode login --only-show-errors --overwrite \
-            --account-name "$STORAGE_ACCOUNT" --container-name "$CONTAINER" \
-            --name "$BLOB" --file app.war
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --name "$BLOB" \
+            --file app.war
 
           SAS_URL=$(az storage blob generate-sas --auth-mode login --as-user --https-only --full-uri -o tsv \
-            --account-name "$STORAGE_ACCOUNT" --container-name "$CONTAINER" --name "$BLOB" \
-            --permissions r --expiry "$(date -u -d '+30 minutes' '+%Y-%m-%dT%H:%MZ')")
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --name "$BLOB" \
+            --permissions r \
+            --expiry "$(date -u -d '+30 minutes' '+%Y-%m-%dT%H:%MZ')")
+
           echo "::add-mask::$SAS_URL"
 
-          {
-            echo "\$WarUrl  = '$SAS_URL'"
-            echo "\$AppName = '$APP_NAME'"
-            echo "\$Service = '$TOMCAT_SERVICE'"
-            echo "\$Port    = $HTTP_PORT"
-            cat << 'PS'
-          $ErrorActionPreference = 'Stop'
-          $ProgressPreference    = 'SilentlyContinue'
-          try {
-              $svc = Get-CimInstance Win32_Service -Filter "Name='$Service'"
-              if (-not $svc) { throw "Service '$Service' not found." }
-              $exe = if ($svc.PathName -match '^"([^"]+)"') { $Matches[1] } else { ($svc.PathName -split '\s+')[0] }
-              $webapps = Join-Path (Split-Path (Split-Path $exe)) 'webapps'
-              $tmp = Join-Path $env:TEMP "$AppName.war"
+          az vm run-command invoke \
+            -g "$RESOURCE_GROUP" \
+            -n "$VM_NAME" \
+            --command-id RunPowerShellScript \
+            --scripts "
+              \$ErrorActionPreference = 'Stop'
+              \$ProgressPreference = 'SilentlyContinue'
 
-              Invoke-WebRequest -Uri $WarUrl -OutFile $tmp -UseBasicParsing
+              try {
+                  \$WarUrl = '$SAS_URL'
+                  \$AppName = '$APP_NAME'
+                  \$Service = '$TOMCAT_SERVICE'
+                  \$Port = $HTTP_PORT
 
-              Stop-Service $Service -Force
-              (Get-Service $Service).WaitForStatus('Stopped', '00:01:30')
-              Remove-Item (Join-Path $webapps $AppName) -Recurse -Force -ErrorAction SilentlyContinue
-              Move-Item $tmp (Join-Path $webapps "$AppName.war") -Force
-              Start-Service $Service
-              (Get-Service $Service).WaitForStatus('Running', '00:01:30')
+                  \$svc = Get-CimInstance Win32_Service -Filter \"Name='\$Service'\"
+                  if (-not \$svc) { throw \"Service '\$Service' not found.\" }
 
-              $ctx = if ($AppName -eq 'ROOT') { '' } else { "$AppName/" }
-              for ($i = 0; $i -lt 24; $i++) {
-                  try   { $code = [int](Invoke-WebRequest "http://localhost:$Port/$ctx" -UseBasicParsing -TimeoutSec 10).StatusCode }
-                  catch { $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 } }
-                  if ($code -ge 200 -and $code -lt 400) { break }
-                  Start-Sleep 5
+                  \$exe = if (\$svc.PathName -match '^\"([^\"]+)\"') { \$Matches[1] } else { (\$svc.PathName -split '\s+')[0] }
+                  \$webapps = Join-Path (Split-Path (Split-Path \$exe)) 'webapps'
+
+                  \$tmp = Join-Path \$env:TEMP \"\$AppName.war\"
+                  Invoke-WebRequest -Uri \$WarUrl -OutFile \$tmp -UseBasicParsing
+
+                  Stop-Service \$Service -Force
+                  (Get-Service \$Service).WaitForStatus('Stopped', '00:01:30')
+
+                  Remove-Item (Join-Path \$webapps \$AppName) -Recurse -Force -ErrorAction SilentlyContinue
+                  Move-Item \$tmp (Join-Path \$webapps \"\$AppName.war\") -Force
+
+                  Start-Service \$Service
+                  (Get-Service \$Service).WaitForStatus('Running', '00:01:30')
+
+                  \$ctx = if (\$AppName -eq 'ROOT') { '' } else { \"\$AppName/\" }
+
+                  for (\$i = 0; \$i -lt 24; \$i++) {
+                      try {
+                          \$code = [int](Invoke-WebRequest \"http://localhost:\$Port/\$ctx\" -UseBasicParsing -TimeoutSec 10).StatusCode
+                      } catch {
+                          \$code = if (\$_.Exception.Response) { [int]\$_.Exception.Response.StatusCode } else { 0 }
+                      }
+
+                      if (\$code -ge 200 -and \$code -lt 400) { break }
+                      Start-Sleep 5
+                  }
+
+                  if (\$code -lt 200 -or \$code -ge 400) {
+                      throw \"Health check failed (HTTP \$code)\"
+                  }
+
+                  'DEPLOY_RESULT=SUCCESS'
+              } catch {
+                  \"DEPLOY_RESULT=FAILED: \$($_.Exception.Message)\"
+                  Start-Service \$Service -ErrorAction SilentlyContinue
+                  exit 1
               }
-              if ($code -lt 200 -or $code -ge 400) { throw "Health check failed (HTTP $code)" }
-              'DEPLOY_RESULT=SUCCESS'
-          }
-          catch {
-              "DEPLOY_RESULT=FAILED: $($_.Exception.Message)"
-              Start-Service $Service -ErrorAction SilentlyContinue
-              exit 1
-          }
-          PS
-          } > deploy.ps1
-
-          OUT=$(az vm run-command invoke -g "$RESOURCE_GROUP" -n "$VM_NAME" \
-            --command-id RunPowerShellScript --scripts @deploy.ps1 \
-            --query "value[0].message" -o tsv)
+            " \
+            --query "value[0].message" -o tsv > vm-output.txt
 
           az storage blob delete --auth-mode login --only-show-errors \
-            --account-name "$STORAGE_ACCOUNT" --container-name "$CONTAINER" --name "$BLOB" || true
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --name "$BLOB" || true
 
-          echo "$OUT"
-          grep -q "DEPLOY_RESULT=SUCCESS" <<< "$OUT"
+          cat vm-output.txt
+
+          grep -q "DEPLOY_RESULT=SUCCESS" vm-output.txt
