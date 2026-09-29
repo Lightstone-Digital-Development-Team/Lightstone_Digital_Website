@@ -16,7 +16,6 @@ concurrency: deploy-dev
 
 env:
   VM_NAME: LSDGDW-AZWEB01
-  APP_NAME: myapp
   TOMCAT_SERVICE: Tomcat10
   HTTP_PORT: "8080"
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -35,14 +34,25 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - run: mvn -B package -DskipTests
+      - name: Build WAR
+        run: mvn -B package -DskipTests
 
-      - run: mkdir -p dist && cp target/*.war dist/app.war
+      - name: Find WAR file
+        id: findwar
+        run: |
+          WAR_FILE=$(ls target/*.war | head -n 1)
+          echo "WAR_FILE=$WAR_FILE" >> $GITHUB_ENV
+          echo "WAR_NAME=$(basename $WAR_FILE)" >> $GITHUB_ENV
+
+      - name: Copy WAR file
+        run: |
+          mkdir -p dist
+          cp "$WAR_FILE" dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: war
-          path: dist/app.war
+          path: dist/
 
   test:
     needs: build
@@ -76,20 +86,25 @@ jobs:
       - name: Deploy WAR to Tomcat
         shell: bash
         run: |
-          BLOB="$APP_NAME-$GITHUB_RUN_ID.war"
+          WAR_NAME=$(ls *.war | head -n 1)
+          APP_NAME="${WAR_NAME%.war}"
+          BLOB="${WAR_NAME}-${GITHUB_RUN_ID}"
+
+          echo "Detected WAR: $WAR_NAME"
+          echo "App Name: $APP_NAME"
 
           az storage blob upload --auth-mode login --only-show-errors --overwrite \
             --account-name "$STORAGE_ACCOUNT" \
             --container-name "$CONTAINER" \
             --name "$BLOB" \
-            --file app.war
+            --file "$WAR_NAME"
 
           SAS_URL=$(az storage blob generate-sas --auth-mode login --as-user --https-only --full-uri -o tsv \
             --account-name "$STORAGE_ACCOUNT" \
             --container-name "$CONTAINER" \
             --name "$BLOB" \
             --permissions r \
-            --expiry "$(date -u -d '+30 minutes' '+%Y-%m-%dT%H:%MZ')")
+            --expiry "$(date -u -d '+2 hours' '+%Y-%m-%dT%H:%MZ')")
 
           echo "::add-mask::$SAS_URL"
 
@@ -103,6 +118,7 @@ jobs:
 
               try {
                   \$WarUrl = '$SAS_URL'
+                  \$WarName = '$WAR_NAME'
                   \$AppName = '$APP_NAME'
                   \$Service = '$TOMCAT_SERVICE'
                   \$Port = $HTTP_PORT
@@ -113,14 +129,14 @@ jobs:
                   \$exe = if (\$svc.PathName -match '^\"([^\"]+)\"') { \$Matches[1] } else { (\$svc.PathName -split '\s+')[0] }
                   \$webapps = Join-Path (Split-Path (Split-Path \$exe)) 'webapps'
 
-                  \$tmp = Join-Path \$env:TEMP \"\$AppName.war\"
+                  \$tmp = Join-Path \$env:TEMP \$WarName
                   Invoke-WebRequest -Uri \$WarUrl -OutFile \$tmp -UseBasicParsing
 
                   Stop-Service \$Service -Force
                   (Get-Service \$Service).WaitForStatus('Stopped', '00:01:30')
 
                   Remove-Item (Join-Path \$webapps \$AppName) -Recurse -Force -ErrorAction SilentlyContinue
-                  Move-Item \$tmp (Join-Path \$webapps \"\$AppName.war\") -Force
+                  Move-Item \$tmp (Join-Path \$webapps \"\$WarName\") -Force
 
                   Start-Service \$Service
                   (Get-Service \$Service).WaitForStatus('Running', '00:01:30')
