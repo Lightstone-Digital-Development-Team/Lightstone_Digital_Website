@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - dev
-      - DEVLAB-51
+      - DEVLAB-51/basic-setup
 
 permissions:
   id-token: write
