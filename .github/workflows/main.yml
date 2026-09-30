@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - dev
-      - DEVLAB-38
+      - DEVLAB-51
 
 permissions:
   id-token: write
