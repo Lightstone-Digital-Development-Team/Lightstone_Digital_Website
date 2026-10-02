@@ -28,21 +28,23 @@ jobs:
     runs-on: windows-latest
     
     steps:
-      - name: Install WinRM Client
+      - name: Configure WinRM Client for HTTP
+        shell: pwsh
         run: |
           winrm quickconfig -q
           winrm set winrm/config/client '@{AllowUnencrypted="true"}'
           winrm set winrm/config/client/auth '@{Basic="true"}'
-          
-      - name: Run PowerShell command on a remote VM
+
+      - name: Run PowerShell command on remote Windows Server 2025 VM
+        shell: pwsh
         run: |
           $ip = "172.190.99.22"
           $username = "azureuser"
-          $password = (ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force)
+          $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
-          Invoke-Command -ComputerName $ip -Credential $cred -UseSSL -ScriptBlock {
-              Write-Output "Hello from GitHub Actions via WinRM!"
+          Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
+              Write-Output "Hello from GitHub Actions via WinRM over HTTP!"
               hostname
               Get-Date
           }
