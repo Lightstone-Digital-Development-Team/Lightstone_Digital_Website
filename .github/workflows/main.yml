@@ -67,3 +67,4 @@ jobs:
               Start-Service -Name "Tomcat10"
               Write-Output "Tomcat started successfully!"
               Get-Service -Name "Tomcat10"
+          }
