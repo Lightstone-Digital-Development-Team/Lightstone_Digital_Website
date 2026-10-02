@@ -53,3 +53,17 @@ jobs:
               hostname
               Get-Date
           }
+
+      - name: Start Tomcate
+        shell: pwsh
+        run: |
+          $ip = "172.190.99.22"
+          $username = "azureuser"
+          $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential($username, $password)
+
+          Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
+              Write-Output "Starting Tomcat service..."
+              Start-Service -Name "Tomcat10"
+              Write-Output "Tomcat started successfully!"
+              Get-Service -Name "Tomcat10"
