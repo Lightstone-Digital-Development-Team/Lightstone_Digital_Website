@@ -30,6 +30,12 @@ jobs:
     steps:
       - name: Install WinRM Client
         run: |
+          winrm quickconfig -q
+          winrm set winrm/config/client '@{AllowUnencrypted="true"}'
+          winrm set winrm/config/client/auth '@{Basic="true"}'
+          
+      - name: Run PowerShell command on a remote VM
+        run: |
           $ip = "172.190.99.22"
           $username = "azureuser"
           $password = (ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force)
