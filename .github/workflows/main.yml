@@ -44,4 +44,12 @@ jobs:
         shell: pwsh
         run: |
           $ip = "172.190.99.22"
-          $username = "azure
+          $username = "azureuser"
+          $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential($username, $password)
+
+          Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
+              Write-Output "Hello from GitHub Actions via WinRM over HTTP!"
+              hostname
+              Get-Date
+          }
