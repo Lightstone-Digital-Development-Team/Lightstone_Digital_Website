@@ -17,20 +17,10 @@ jobs:
       - name: Initial Build
         run: echo "Hello! Welcome to the build"
 
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Test VM Connection
+      - name: Test RDP Connectivity
         run: |
-          az vm run-command invoke \
-            --resource-group DEVLAB \
-            --name LSDGDW-AZWEB01 \
-            --command-id RunPowerShellScript \
-            --scripts "Write-Output 'Connection successful from GitHub Actions!'"
+          echo "Checking RDP port on VM..."
+          nc -vz 172.190.99.22 3389
 
   test:
     runs-on: ubuntu-latest
