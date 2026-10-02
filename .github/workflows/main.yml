@@ -63,8 +63,16 @@ jobs:
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
-              Write-Output "Starting Tomcat service..."
-              Start-Service -Name "Tomcat10"
-              Write-Output "Tomcat started successfully!"
-              Get-Service -Name "Tomcat10"
+              Write-Output "Starting Tomcat via startup.bat..."
+
+              # UPDATE THIS PATH TO MATCH YOUR SERVER
+              $tomcatPath = "C:\apache-tomcat-10.1.60\bin\startup.bat"
+
+              if (Test-Path $tomcatPath) {
+                  Write-Output "Found Tomcat startup script at $tomcatPath"
+                  & $tomcatPath
+                  Write-Output "Tomcat startup.bat executed."
+              } else {
+                  Write-Output "ERROR: Tomcat startup.bat not found at $tomcatPath"
+              }
           }
