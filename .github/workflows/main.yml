@@ -54,7 +54,7 @@ jobs:
               Get-Date
           }
 
-      - name: Start Tomcat using catalina.bat run
+      - name: Start Tomcat in background
         shell: pwsh
         run: |
           $ip = "172.190.99.22"
@@ -65,6 +65,9 @@ jobs:
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
               $tomcatBin = "C:\apache-tomcat-10.1.60\bin"
 
-              Write-Output "Starting Tomcat using catalina.bat run..."
-              & "$tomcatBin\catalina.bat" run
+              Write-Output "Starting Tomcat in background using Start-Process..."
+
+              Start-Process -FilePath "$tomcatBin\catalina.bat" -ArgumentList "start" -WindowStyle Hidden
+
+              Write-Output "Tomcat started successfully in background."
           }
