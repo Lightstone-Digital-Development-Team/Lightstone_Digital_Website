@@ -54,7 +54,7 @@ jobs:
               Get-Date
           }
 
-      - name: Start Tomcate
+      - name: Start Tomcat using catalina.bat run
         shell: pwsh
         run: |
           $ip = "172.190.99.22"
@@ -63,16 +63,8 @@ jobs:
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
-              Write-Output "Starting Tomcat via startup.bat..."
+              $tomcatBin = "C:\apache-tomcat-10.1.0\bin"
 
-              # UPDATE THIS PATH TO MATCH YOUR SERVER
-              $tomcatPath = "C:\apache-tomcat-10.1.60\bin\startup.bat"
-
-              if (Test-Path $tomcatPath) {
-                  Write-Output "Found Tomcat startup script at $tomcatPath"
-                  & $tomcatPath
-                  Write-Output "Tomcat startup.bat executed."
-              } else {
-                  Write-Output "ERROR: Tomcat startup.bat not found at $tomcatPath"
-              }
+              Write-Output "Starting Tomcat using catalina.bat run..."
+              & "$tomcatBin\catalina.bat" run
           }
