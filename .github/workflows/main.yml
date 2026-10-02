@@ -3,8 +3,6 @@ name: Build, Test, Deploy
 on:
   push:
     branches:
-      - master
-      - dev
       - DEVLAB-51/basic-setup
 
 permissions:
