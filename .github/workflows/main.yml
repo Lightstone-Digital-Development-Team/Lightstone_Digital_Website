@@ -14,13 +14,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Initial Build
-        run: echo "Hello! Welcome to the build"
-
-      - name: Test RDP Connectivity
-        run: |
-          echo "Checking RDP port on VM..."
-          nc -vz 172.190.99.22 3389
+      - name: Build
+        run: echo "Welcome!!"
 
   test:
     runs-on: ubuntu-latest
@@ -30,8 +25,18 @@ jobs:
         run: echo "Time for a test"
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     
     steps:
-      - name: Deploy
-        run: echo "Test deploy"
+      - name: Install WinRM Client
+        run: |
+          $ip = "172.190.99.22"
+          $username = "azureuser"
+          $password = (ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force)
+          $cred = New-Object System.Management.Automation.PSCredential($username, $password)
+
+          Invoke-Command -ComputerName $ip -Credential $cred -UseSSL -ScriptBlock {
+              Write-Output "Hello from GitHub Actions via WinRM!"
+              hostname
+              Get-Date
+          }
