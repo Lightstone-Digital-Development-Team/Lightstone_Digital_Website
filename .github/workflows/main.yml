@@ -35,12 +35,13 @@ jobs:
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
-              Write-Output "Hello from GitHub Actions via WinRM over HTTP!"
-              hostname
-              Get-Date
+            Write-Output "Hello from GitHub Actions via WinRM over HTTP!"
+            hostname
+            Get-Date
           }
 
-      - name: Start Tomcat in background
+      # ⭐ FIXED TOMCAT JOB — now non-blocking and reliable
+      - name: Start Tomcat in background (non-blocking fix)
         shell: pwsh
         run: |
           $ip = "20.83.176.59"
@@ -49,11 +50,16 @@ jobs:
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
-              $tomcatBin = "C:\apache-tomcat-10.1.60\bin"
 
-              Write-Output "Starting Tomcat in background using Start-Process..."
+            $taskName = "StartTomcatDetached"
+            $tomcatBin = "C:\apache-tomcat-10.1.60\bin\catalina.bat"
 
-              Start-Process -FilePath "$tomcatBin\catalina.bat" -ArgumentList "start" -WindowStyle Hidden
+            Write-Output "Creating scheduled task to start Tomcat detached..."
 
-              Write-Output "Tomcat started successfully in background."
+            schtasks /create /tn $taskName /tr "\"$tomcatBin\" start" /sc once /st 00:00 /f
+
+            Write-Output "Running scheduled task..."
+            schtasks /run /tn $taskName
+
+            Write-Output "Tomcat start triggered successfully and detached from WinRM session."
           }
