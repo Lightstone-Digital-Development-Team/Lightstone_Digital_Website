@@ -10,20 +10,6 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Build
-        run: echo "Welcome!!"
-
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Test
-        run: echo "Time for a test"
-
   deploy:
     runs-on: windows-latest
 
@@ -38,12 +24,12 @@ jobs:
       - name: Add VM to TrustedHosts
         shell: pwsh
         run: |
-          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "172.190.99.22" -Force
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "20.83.176.59" -Force
 
       - name: Run PowerShell command on remote Windows Server 2025 VM
         shell: pwsh
         run: |
-          $ip = "172.190.99.22"
+          $ip = "20.83.176.59"
           $username = "azureuser"
           $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
@@ -57,7 +43,7 @@ jobs:
       - name: Start Tomcat in background
         shell: pwsh
         run: |
-          $ip = "172.190.99.22"
+          $ip = "20.83.176.59"
           $username = "azureuser"
           $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
