@@ -24,12 +24,12 @@ jobs:
       - name: Add VM to TrustedHosts
         shell: pwsh
         run: |
-          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "70.127.224.105" -Force
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "57.154.240.187" -Force
 
       - name: Run PowerShell command on remote Windows Server 2025 VM
         shell: pwsh
         run: |
-          $ip = "70.127.224.105"
+          $ip = "57.154.240.187"
           $username = "azureuser"
           $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
@@ -44,7 +44,7 @@ jobs:
       - name: Start Tomcat in background (non-blocking fix)
         shell: pwsh
         run: |
-          $ip = "70.127.224.105"
+          $ip = "57.154.240.187"
           $username = "azureuser"
           $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
