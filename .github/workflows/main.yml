@@ -40,7 +40,7 @@ jobs:
             Get-Date
           }
 
-      - name: Start Tomcat (non-blocking, returns immediately)
+      - name: Start Tomcat using startup.bat (non-blocking)
         shell: pwsh
         run: |
           $ip = "57.154.240.187"
@@ -49,7 +49,7 @@ jobs:
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
-            Write-Output "Starting Tomcat in non-blocking mode..."
-            Start-Process "C:\apache-tomcat-10.1.60\bin\catalina.bat" -ArgumentList "start"
-            Write-Output "Tomcat start command issued successfully."
+            Write-Output "Starting Tomcat using startup.bat..."
+            Start-Process "cmd.exe" -ArgumentList "/c C:\apache-tomcat-10.1.60\bin\startup.bat"
+            Write-Output "Tomcat startup command issued successfully."
           }
