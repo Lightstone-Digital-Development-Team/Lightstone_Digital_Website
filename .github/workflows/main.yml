@@ -14,6 +14,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Configure WinRM Client for HTTP
         shell: pwsh
         run: |
@@ -29,7 +32,8 @@ jobs:
       - name: Build WAR
         shell: pwsh
         run: |
-          mvn -B package
+          cd $env:GITHUB_WORKSPACE
+          mvn -B -f "./pom.xml" clean package
 
       - name: Copy WAR to Tomcat webapps
         shell: pwsh
@@ -43,12 +47,12 @@ jobs:
           $session = New-PSSession -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic
 
           Write-Output "Copying WAR file to Tomcat webapps..."
-          Copy-Item "./target/yourapp.war" -Destination "C:\apache-tomcat-10.1.60\webapps\" -ToSession $session -Force
+          Copy-Item "$env:GITHUB_WORKSPACE\target\yourapp.war" -Destination "C:\apache-tomcat-10.1.60\webapps\" -ToSession $session -Force
 
           Write-Output "WAR file copied successfully."
           Remove-PSSession $session
 
-      - name: Start Tomcat via Windows Service (non-blocking, reliable)
+      - name: Restart Tomcat service
         shell: pwsh
         run: |
           $ip = "57.154.240.187"
@@ -57,7 +61,7 @@ jobs:
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
           Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
-            Write-Output "Starting Tomcat service..."
-            Start-Service Tomcat10
-            Write-Output "Tomcat service started successfully."
+            Write-Output "Restarting Tomcat service..."
+            Restart-Service Tomcat10
+            Write-Output "Tomcat service restarted successfully."
           }
