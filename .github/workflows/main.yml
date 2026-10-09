@@ -3,32 +3,71 @@ name: Build, Test, Deploy
 on:
   push:
     branches:
-      - master
       - dev
-      - DEVLAB-38
+      - master
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Initial Build
-        run: echo "Hello! Welcome to the build"
-
-  test:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Test
-        run: echo "Time for a test"
-
   deploy:
-    runs-on: ubuntu-latest
-    
+    runs-on: windows-latest
+
     steps:
-      - name: Deploy
-        run: echo "Test deploy"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure WinRM Client for HTTP
+        shell: pwsh
+        run: |
+          winrm quickconfig -q
+          winrm set winrm/config/client '@{AllowUnencrypted="true"}'
+          winrm set winrm/config/client/auth '@{Basic="true"}'
+
+      - name: Add VM to TrustedHosts
+        shell: pwsh
+        run: |
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "57.154.240.187" -Force
+
+      - name: Build WAR
+        shell: pwsh
+        run: |
+          cd $env:GITHUB_WORKSPACE
+          mvn -B -f "./pom.xml" clean package
+          Write-Output "WAR build complete."
+          Get-ChildItem "$env:GITHUB_WORKSPACE\target" -Filter "*.war"
+
+      - name: Copy WAR to Tomcat webapps
+        shell: pwsh
+        run: |
+          $ip = "57.154.240.187"
+          $username = "azureuser"
+          $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential($username, $password)
+
+          $war = Get-ChildItem "$env:GITHUB_WORKSPACE\target" -Filter "*.war" | Select-Object -First 1
+          if (-not $war) { throw "WAR file not found in target folder." }
+
+          Write-Output "Opening WinRM session..."
+          $session = New-PSSession -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic
+
+          Write-Output "Copying $($war.Name) to Tomcat webapps..."
+          Copy-Item $war.FullName -Destination "C:\apache-tomcat-10.1.60\webapps\" -ToSession $session -Force
+
+          Write-Output "WAR file copied successfully."
+          Remove-PSSession $session
+
+      - name: Restart Tomcat service
+        shell: pwsh
+        run: |
+          $ip = "57.154.240.187"
+          $username = "azureuser"
+          $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential($username, $password)
+
+          Invoke-Command -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic -ScriptBlock {
+            Write-Output "Restarting Tomcat service..."
+            Restart-Service Tomcat10
+            Write-Output "Tomcat service restarted successfully."
+          }
