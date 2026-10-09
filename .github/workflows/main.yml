@@ -34,6 +34,8 @@ jobs:
         run: |
           cd $env:GITHUB_WORKSPACE
           mvn -B -f "./pom.xml" clean package
+          Write-Output "WAR build complete."
+          Get-ChildItem "$env:GITHUB_WORKSPACE\target" -Filter "*.war"
 
       - name: Copy WAR to Tomcat webapps
         shell: pwsh
@@ -43,11 +45,14 @@ jobs:
           $password = ConvertTo-SecureString "${{ secrets.WINRM_PASSWORD }}" -AsPlainText -Force
           $cred = New-Object System.Management.Automation.PSCredential($username, $password)
 
+          $war = Get-ChildItem "$env:GITHUB_WORKSPACE\target" -Filter "*.war" | Select-Object -First 1
+          if (-not $war) { throw "WAR file not found in target folder." }
+
           Write-Output "Opening WinRM session..."
           $session = New-PSSession -ComputerName $ip -Credential $cred -Port 5985 -Authentication Basic
 
-          Write-Output "Copying WAR file to Tomcat webapps..."
-          Copy-Item "$env:GITHUB_WORKSPACE\target\yourapp.war" -Destination "C:\apache-tomcat-10.1.60\webapps\" -ToSession $session -Force
+          Write-Output "Copying $($war.Name) to Tomcat webapps..."
+          Copy-Item $war.FullName -Destination "C:\apache-tomcat-10.1.60\webapps\" -ToSession $session -Force
 
           Write-Output "WAR file copied successfully."
           Remove-PSSession $session
